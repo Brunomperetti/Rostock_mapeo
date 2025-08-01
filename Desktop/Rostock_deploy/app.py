@@ -1,14 +1,8 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import pydeck as pdk
-from sklearn.cluster import DBSCAN
-from geopy.distance import geodesic
-import matplotlib.pyplot as plt
-from io import BytesIO
-import openpyxl
 import folium
 from folium.plugins import MarkerCluster
+from io import BytesIO
 
 # Configuración de la página
 st.set_page_config(layout="wide", page_title="Oportunidades Comerciales en Argentina")
@@ -31,7 +25,7 @@ def load_and_standardize_data(uploaded_file, file_type):
     if uploaded_file is not None:
         try:
             df = pd.read_excel(uploaded_file)
-            
+
             # Estandarización según el tipo de archivo
             if file_type == "base_fria":
                 df = df.rename(columns={
@@ -45,7 +39,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                 })
                 df['tipo'] = 'base_fria'
                 df['potencial'] = 'bajo'
-                
+
             elif file_type == "clientes_campana":
                 df = df.rename(columns={
                     'Nombre': 'nombre',
@@ -58,7 +52,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                 df['tipo'] = 'cliente_campana'
                 df['potencial'] = 'alto'
                 df['direccion'] = None
-                
+
             elif file_type == "lista_pesada":
                 df = df.rename(columns={
                     'Nombre': 'nombre',
@@ -71,7 +65,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                 df['potencial'] = 'alto'
                 df['localidad'] = None
                 df['direccion'] = None
-                
+
             elif file_type == "rep_motor":
                 df = df.rename(columns={
                     'Nombre': 'nombre',
@@ -84,7 +78,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                 })
                 df['tipo'] = 'rep_motor'
                 df['potencial'] = 'bajo'
-                
+
             elif file_type == "clientes_activos":
                 df = df.rename(columns={
                     'Nombre': 'nombre',
@@ -97,7 +91,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                 df['tipo'] = 'cliente_activo'
                 df['potencial'] = 'activo'
                 df['telefono'] = None
-                
+
             return df[['nombre', 'provincia', 'localidad', 'direccion', 'telefono', 'latitud', 'longitud', 'tipo', 'potencial']]
 
         except Exception as e:
@@ -133,7 +127,7 @@ col3.metric("Leads Potenciales", len(full_df[full_df['potencial'] == 'alto']))
 st.subheader("Distribución por Tipo")
 st.bar_chart(full_df['tipo'].value_counts())
 
-# Visualización en mapa
+# Visualización en mapa con Folium
 st.header("Visualización Geográfica")
 
 # Configuración del mapa
@@ -143,65 +137,6 @@ if provincia_seleccionada != 'TODAS':
     map_df = full_df[full_df['provincia'] == provincia_seleccionada]
 else:
     map_df = full_df.copy()
-
-# Asignar colores según potencial
-def get_color(potencial):
-    if potencial == 'alto':
-        return [255, 0, 0, 160]  # Rojo para alto potencial
-    elif potencial == 'bajo':
-        return [255, 165, 0, 160]  # Naranja para bajo potencial
-    else:
-        return [0, 128, 0, 160]  # Verde para clientes activos
-
-map_df['color'] = map_df['potencial'].apply(lambda x: get_color(x))
-
-# Capa del mapa
-layer = pdk.Layer(
-    "ScatterplotLayer",
-    map_df,
-    pickable=True,
-    opacity=0.8,
-    stroked=True,
-    filled=True,
-    radius_scale=10,
-    radius_min_pixels=5,
-    radius_max_pixels=15,
-    line_width_min_pixels=1,
-    get_position=['longitud', 'latitud'],
-    get_color='color',
-    get_radius=200,
-)
-
-# Vista del mapa
-view_state = pdk.ViewState(
-    latitude=map_df['latitud'].mean(),
-    longitude=map_df['longitud'].mean(),
-    zoom=5,
-    pitch=0
-)
-
-# Tooltip
-tooltip = {
-    "html": "<b>Nombre:</b> {nombre}<br/>"
-            "<b>Provincia:</b> {provincia}<br/>"
-            "<b>Localidad:</b> {localidad}<br/>"
-            "<b>Tipo:</b> {tipo}",
-    "style": {
-        "backgroundColor": "steelblue",
-        "color": "white"
-    }
-}
-
-# Renderizar mapa
-st.pydeck_chart(pdk.Deck(
-    map_style="mapbox://styles/mapbox/light-v9",
-    initial_view_state=view_state,
-    layers=[layer],
-    tooltip=tooltip
-))
-
-# Visualización del mapa con Folium (mantener sin cambios)
-st.header("Visualización con Mapa de Folium")
 
 # Crear mapa de Folium
 m = folium.Map(location=[map_df['latitud'].mean(), map_df['longitud'].mean()], zoom_start=5)
@@ -218,7 +153,7 @@ for _, row in map_df.iterrows():
     ).add_to(marker_cluster)
 
 # Mostrar mapa en Streamlit
-st.write(m)
+st.components.v1.html(m._repr_html_(), height=600)
 
 # Análisis de oportunidades
 st.header("Análisis de Oportunidades")
@@ -273,6 +208,7 @@ if st.button("Identificar Zonas de Oportunidad"):
             st.warning("No se encontraron clusters significativos de leads potenciales.")
     else:
         st.warning("No hay datos de leads potenciales para analizar.")
+
 
 
 
