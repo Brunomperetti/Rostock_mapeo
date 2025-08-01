@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import folium
 from folium.plugins import MarkerCluster
+from sklearn.cluster import DBSCAN
+import numpy as np
+from geopy.distance import geodesic
 
 # Configuración de la página
 st.set_page_config(layout="wide", page_title="Oportunidades Comerciales en Argentina")
@@ -24,7 +27,7 @@ def load_and_standardize_data(uploaded_file, file_type):
     if uploaded_file is not None:
         try:
             df = pd.read_excel(uploaded_file)
-            
+
             # Estandarización según el tipo de archivo
             if file_type == "base_fria":
                 df = df.rename(columns={
@@ -36,9 +39,9 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'lat': 'latitud',
                     'lon': 'longitud'
                 })
-                df['tipo'] = 'base_fria'
+                df['tipo'] = 'Base Fría'
                 df['potencial'] = 'bajo'
-                
+
             elif file_type == "clientes_campana":
                 df = df.rename(columns={
                     'Nombre': 'nombre',
@@ -48,10 +51,10 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'lat': 'latitud',
                     'lon': 'longitud'
                 })
-                df['tipo'] = 'cliente_campana'
+                df['tipo'] = 'Clientes Campaña'
                 df['potencial'] = 'alto'
                 df['direccion'] = None
-                
+
             elif file_type == "lista_pesada":
                 df = df.rename(columns={
                     'Nombre': 'nombre',
@@ -60,11 +63,11 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'lat': 'latitud',
                     'lon': 'longitud'
                 })
-                df['tipo'] = 'lista_pesada'
+                df['tipo'] = 'Lista Pesada'
                 df['potencial'] = 'alto'
                 df['localidad'] = None
                 df['direccion'] = None
-                
+
             elif file_type == "rep_motor":
                 df = df.rename(columns={
                     'Nombre': 'nombre',
@@ -75,9 +78,9 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'lat': 'latitud',
                     'lon': 'longitud'
                 })
-                df['tipo'] = 'rep_motor'
+                df['tipo'] = 'Repuestos Motor'
                 df['potencial'] = 'bajo'
-                
+
             elif file_type == "clientes_activos":
                 df = df.rename(columns={
                     'Nombre': 'nombre',
@@ -87,12 +90,12 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'lat': 'latitud',
                     'lon': 'longitud'
                 })
-                df['tipo'] = 'cliente_activo'
+                df['tipo'] = 'Clientes Activos'
                 df['potencial'] = 'activo'
                 df['telefono'] = None
-                
+
             return df[['nombre', 'provincia', 'localidad', 'direccion', 'telefono', 'latitud', 'longitud', 'tipo', 'potencial']]
-            
+
         except Exception as e:
             st.error(f"Error al cargar {file_type}: {str(e)}")
             return None
@@ -126,7 +129,7 @@ col3.metric("Leads Potenciales", len(full_df[full_df['potencial'] == 'alto']))
 st.subheader("Distribución por Tipo")
 st.bar_chart(full_df['tipo'].value_counts())
 
-# Visualización en mapa (Folium)
+# Visualización en mapa con Folium
 st.header("Visualización Geográfica")
 
 # Configuración del mapa
@@ -137,31 +140,73 @@ if provincia_seleccionada != 'TODAS':
 else:
     map_df = full_df.copy()
 
-# Crear el mapa base de Folium
+# Crear mapa de Folium
 m = folium.Map(location=[map_df['latitud'].mean(), map_df['longitud'].mean()], zoom_start=5)
 
-# Añadir MarkerCluster
+# Agregar MarkerCluster
 marker_cluster = MarkerCluster().add_to(m)
 
-# Asignar colores según el tipo de potencial (alto, bajo, activo)
-def get_color(potencial):
-    if potencial == 'alto':
-        return 'red'
-    elif potencial == 'bajo':
-        return 'orange'
-    else:
-        return 'green'
+# Definir colores e íconos para cada tipo de dato
+iconos = {
+    'Base Fría': {'color': 'blue', 'icon': 'info-sign'},
+    'Clientes Campaña': {'color': 'green', 'icon': 'user'},
+    'Lista Pesada': {'color': 'orange', 'icon': 'shopping-cart'},
+    'Repuestos Motor': {'color': 'purple', 'icon': 'wrench'},
+    'Clientes Activos': {'color': 'red', 'icon': 'star'}
+}
 
-# Añadir los puntos de datos al mapa
+# Añadir marcadores al mapa con diferentes colores según el tipo
 for _, row in map_df.iterrows():
+    tipo = row['tipo']
+    icono = iconos.get(tipo, {'color': 'gray', 'icon': 'question-sign'})
+    
+    # Crear contenido del popup
+    popup_content = f"""
+    <div style="width: 250px;">
+        <h4 style="margin:0;color:{icono['color']}">{tipo}</h4>
+        <hr style="margin:5px 0;">
+        <p style="margin:3px 0;"><b>Nombre:</b> {row['nombre']}</p>
+        <p style="margin:3px 0;"><b>Provincia:</b> {row['provincia']}</p>
+        {f"<p style='margin:3px 0;'><b>Localidad:</b> {row['localidad']}</p>" if pd.notna(row['localidad']) else ""}
+        {f"<p style='margin:3px 0;'><b>Dirección:</b> {row['direccion']}</p>" if pd.notna(row['direccion']) else ""}
+        {f"<p style='margin:3px 0;'><b>Teléfono:</b> {row['telefono']}</p>" if pd.notna(row['telefono']) else ""}
+        <p style="margin:3px 0;"><b>Potencial:</b> {row['potencial'].capitalize()}</p>
+    </div>
+    """
+    
     folium.Marker(
         location=[row['latitud'], row['longitud']],
-        popup=f"Nombre: {row['nombre']}<br>Provincia: {row['provincia']}<br>Localidad: {row['localidad']}<br>Tipo: {row['tipo']}",
-        icon=folium.Icon(color=get_color(row['potencial']))
+        popup=folium.Popup(popup_content, max_width=300),
+        icon=folium.Icon(
+            color=icono['color'],
+            icon=icono['icon'],
+            prefix='glyphicon'  # Usamos los íconos de Bootstrap
+        ),
+        tooltip=f"{tipo}: {row['nombre']}"  # Muestra el tipo y nombre al pasar el mouse
     ).add_to(marker_cluster)
 
-# Mostrar el mapa interactivo
-st.write(m)
+# Añadir leyenda al mapa
+legend_html = """
+<div style="position: fixed; 
+     bottom: 50px; left: 50px; width: 200px; height: 180px; 
+     border:2px solid grey; z-index:9999; font-size:14px;
+     background-color:white;
+     padding: 10px;
+     border-radius: 5px;
+     box-shadow: 3px 3px 5px rgba(0,0,0,0.2);">
+     <h4 style="margin:0 0 10px 0; padding:0;">Leyenda</h4>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-star" style="color:red"></i> Clientes Activos</p>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-user" style="color:green"></i> Clientes Campaña</p>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-shopping-cart" style="color:orange"></i> Lista Pesada</p>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-info-sign" style="color:blue"></i> Base Fría</p>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-wrench" style="color:purple"></i> Repuestos Motor</p>
+</div>
+"""
+
+m.get_root().html.add_child(folium.Element(legend_html))
+
+# Mostrar mapa en Streamlit
+st.components.v1.html(m._repr_html_(), height=600)
 
 # Análisis de oportunidades
 st.header("Análisis de Oportunidades")
@@ -189,47 +234,75 @@ if st.button("Identificar Zonas de Oportunidad"):
             # Calcular centroides de los clusters
             centroides = clusters.groupby('cluster')[['latitud', 'longitud']].mean().reset_index()
             
-            # Mostrar tabla con oportunidades
+            # Contar clientes activos cerca de cada centroide
+            def count_nearby_active(centroide, radius_km=50):
+                activos = full_df[full_df['potencial'] == 'activo']
+                if len(activos) == 0:
+                    return 0
+                
+                distances = activos.apply(
+                    lambda row: geodesic((row['latitud'], row['longitud']), (centroide['latitud'], centroide['longitud'])).km,
+                    axis=1
+                )
+                return len(distances[distances <= radius_km])
+            
+            centroides['activos_cercanos'] = centroides.apply(count_nearby_active, axis=1)
+            
+            # Ordenar por menor presencia de clientes activos (mayor oportunidad)
+            oportunidades = centroides.sort_values('activos_cercanos').head(5)
+            
             st.subheader("Top 5 Zonas de Oportunidad")
-            st.write("Estas zonas tienen alta concentración de leads potenciales y baja presencia de clientes activos: ")
-            st.dataframe(centroides)
+            st.write("Estas zonas tienen alta concentración de leads potenciales y baja presencia de clientes activos:")
+            
+            # Mostrar tabla con oportunidades
+            st.dataframe(oportunidades)
+            
+            # Crear mapa con las zonas de oportunidad
+            st.subheader("Mapa de Zonas de Oportunidad")
+            m_oportunidades = folium.Map(location=[oportunidades['latitud'].mean(), oportunidades['longitud'].mean()], zoom_start=6)
+            
+            # Añadir los clusters de oportunidad
+            for _, row in oportunidades.iterrows():
+                folium.CircleMarker(
+                    location=[row['latitud'], row['longitud']],
+                    radius=15,
+                    color='#3186cc',
+                    fill=True,
+                    fill_color='#3186cc',
+                    fill_opacity=0.7,
+                    popup=f"Clientes activos cercanos: {row['activos_cercanos']}"
+                ).add_to(m_oportunidades)
+            
+            # Añadir todos los puntos de alto potencial
+            for _, row in alto_potencial.iterrows():
+                folium.CircleMarker(
+                    location=[row['latitud'], row['longitud']],
+                    radius=5,
+                    color='green',
+                    fill=True,
+                    fill_color='green',
+                    fill_opacity=0.6
+                ).add_to(m_oportunidades)
+            
+            # Mostrar mapa de oportunidades
+            st.components.v1.html(m_oportunidades._repr_html_(), height=400)
             
         else:
             st.warning("No se encontraron clusters significativos de leads potenciales.")
     else:
         st.warning("No hay datos de leads potenciales para analizar.")
 
-# Recomendaciones basadas en el análisis
-st.header("Recomendaciones de Expansión")
-
-if st.button("Generar Recomendaciones"):
-    provincias_potencial = full_df[full_df['potencial'] == 'alto']['provincia'].value_counts().head(5)
-    provincias_activos = full_df[full_df['potencial'] == 'activo']['provincia'].value_counts()
-    
-    oportunidades = []
-    for provincia, count in provincias_potencial.items():
-        activos = provincias_activos.get(provincia, 0)
-        ratio = count / (activos + 1)  # Evitar división por cero
-        oportunidades.append({'Provincia': provincia, 'Leads Potenciales': count, 'Clientes Activos': activos, 'Ratio': ratio})
-    
-    oportunidades_df = pd.DataFrame(oportunidades).sort_values('Ratio', ascending=False)
-    
-    st.subheader("Top Provincias con Mayor Oportunidad")
-    st.write("Estas provincias tienen alta concentración de leads potenciales en relación a clientes activos:")
-    st.dataframe(oportunidades_df)
-
-# Exportar resultados
-st.sidebar.header("Exportar Resultados")
-if st.sidebar.button("Exportar Datos Consolidados"):
+# Opción para descargar los datos procesados
+if st.button("Descargar Datos Procesados"):
     output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        full_df.to_excel(writer, index=False)
-    st.sidebar.download_button(
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        full_df.to_excel(writer, sheet_name='Datos Consolidados', index=False)
+    output.seek(0)
+    st.download_button(
         label="Descargar Excel",
-        data=output.getvalue(),
+        data=output,
         file_name="datos_consolidados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
 
 
