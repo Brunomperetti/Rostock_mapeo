@@ -190,9 +190,9 @@ tooltip = {
     }
 }
 
-# Renderizar mapa
+# Renderizar mapa con OpenStreetMap
 st.pydeck_chart(pdk.Deck(
-    map_style="mapbox://styles/mapbox/light-v9",
+    map_style="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",  # Usando OpenStreetMap
     initial_view_state=view_state,
     layers=[layer],
     tooltip=tooltip
@@ -304,7 +304,7 @@ if st.button("Identificar Zonas de Oportunidad"):
             
             # Renderizar mapa
             st.pydeck_chart(pdk.Deck(
-                map_style="mapbox://styles/mapbox/light-v9",
+                map_style="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",  # Usando OpenStreetMap
                 initial_view_state=view_state,
                 layers=[cluster_layer, centroide_layer],
                 tooltip=tooltip
