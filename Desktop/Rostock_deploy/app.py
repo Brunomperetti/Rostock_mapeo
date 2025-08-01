@@ -1,12 +1,8 @@
 import streamlit as st
 import pandas as pd
+import folium
+from folium.plugins import MarkerCluster
 import numpy as np
-import pydeck as pdk
-from sklearn.cluster import DBSCAN
-from geopy.distance import geodesic
-import matplotlib.pyplot as plt
-from io import BytesIO
-import openpyxl
 
 # Configuración de la página
 st.set_page_config(layout="wide", page_title="Oportunidades Comerciales en Argentina")
@@ -131,7 +127,7 @@ col3.metric("Leads Potenciales", len(full_df[full_df['potencial'] == 'alto']))
 st.subheader("Distribución por Tipo")
 st.bar_chart(full_df['tipo'].value_counts())
 
-# Visualización en mapa
+# Visualización en mapa con Folium
 st.header("Visualización Geográfica")
 
 # Configuración del mapa
@@ -142,60 +138,114 @@ if provincia_seleccionada != 'TODAS':
 else:
     map_df = full_df.copy()
 
-# Asignar colores según potencial
-def get_color(potencial):
-    if potencial == 'alto':
-        return [255, 0, 0, 160]  # Rojo para alto potencial
-    elif potencial == 'bajo':
-        return [255, 165, 0, 160]  # Naranja para bajo potencial
+# Crear mapa base con Folium
+m = folium.Map(location=[map_df['latitud'].mean(), map_df['longitud'].mean()], zoom_start=6)
+
+# Crear un MarkerCluster para agrupar puntos cercanos
+marker_cluster = MarkerCluster().add_to(m)
+
+# Añadir los puntos en el mapa
+for _, row in map_df.iterrows():
+    folium.Marker(
+        location=[row['latitud'], row['longitud']],
+        popup=f"<b>{row['nombre']}</b><br>Provincia: {row['provincia']}<br>Localidad: {row['localidad']}",
+        icon=folium.Icon(color="red" if row['potencial'] == 'alto' else ("orange" if row['potencial'] == 'bajo' else "green"))
+    ).add_to(marker_cluster)
+
+# Mostrar mapa en Streamlit
+st.subheader("Mapa de Oportunidades")
+st.write("Este mapa muestra la ubicación de los clientes potenciales.")
+st.markdown(m._repr_html_(), unsafe_allow_html=True)
+
+# Análisis de oportunidades
+st.header("Análisis de Oportunidades")
+
+# Identificar clusters de alto potencial
+if st.button("Identificar Zonas de Oportunidad"):
+    alto_potencial = full_df[full_df['potencial'] == 'alto']
+    
+    if len(alto_potencial) > 0:
+        # Convertir a coordenadas para clustering
+        coords = alto_potencial[['latitud', 'longitud']].values
+        
+        # DBSCAN para identificar clusters geográficos
+        kms_per_radian = 6371.0088
+        epsilon = 50 / kms_per_radian  # 50km de radio
+        
+        db = DBSCAN(eps=epsilon, min_samples=3, algorithm='ball_tree', metric='haversine').fit(np.radians(coords))
+        
+        alto_potencial['cluster'] = db.labels_
+        
+        # Filtrar solo puntos que están en clusters (no ruido)
+        clusters = alto_potencial[alto_potencial['cluster'] >= 0]
+        
+        if len(clusters) > 0:
+            # Calcular centroides de los clusters
+            centroides = clusters.groupby('cluster')[['latitud', 'longitud']].mean().reset_index()
+            
+            # Contar clientes activos cerca de cada centroide
+            def count_nearby_active(centroide, radius_km=50):
+                activos = full_df[full_df['potencial'] == 'activo']
+                if len(activos) == 0:
+                    return 0
+                
+                distances = activos.apply(
+                    lambda row: geodesic((row['latitud'], row['longitud']), (centroide['latitud'], centroide['longitud'])).km,
+                    axis=1
+                )
+                return len(distances[distances <= radius_km])
+            
+            centroides['activos_cercanos'] = centroides.apply(count_nearby_active, axis=1)
+            
+            # Ordenar por menor presencia de clientes activos (mayor oportunidad)
+            oportunidades = centroides.sort_values('activos_cercanos').head(5)
+            
+            st.subheader("Top 5 Zonas de Oportunidad")
+            st.write("Estas zonas tienen alta concentración de leads potenciales y baja presencia de clientes activos:")            
+            st.dataframe(oportunidades)
+            
+        else:
+            st.warning("No se encontraron clusters significativos de leads potenciales.")
     else:
-        return [0, 128, 0, 160]  # Verde para clientes activos
+        st.warning("No hay datos de leads potenciales para analizar.")
 
-map_df['color'] = map_df['potencial'].apply(lambda x: get_color(x))
+# Recomendaciones basadas en el análisis
+st.header("Recomendaciones de Expansión")
 
-# Capa del mapa
-layer = pdk.Layer(
-    "ScatterplotLayer",
-    map_df,
-    pickable=True,
-    opacity=0.8,
-    stroked=True,
-    filled=True,
-    radius_scale=10,
-    radius_min_pixels=5,
-    radius_max_pixels=15,
-    line_width_min_pixels=1,
-    get_position=['longitud', 'latitud'],
-    get_color='color',
-    get_radius=200,
-)
+if st.button("Generar Recomendaciones"):
+    # Ejemplo simple basado en provincias con más leads potenciales
+    provincias_potencial = full_df[full_df['potencial'] == 'alto']['provincia'].value_counts().head(5)
+    provincias_activos = full_df[full_df['potencial'] == 'activo']['provincia'].value_counts()
+    
+    oportunidades = []
+    for provincia, count in provincias_potencial.items():
+        activos = provincias_activos.get(provincia, 0)
+        ratio = count / (activos + 1)  # Evitar división por cero
+        oportunidades.append({'Provincia': provincia, 'Leads Potenciales': count, 'Clientes Activos': activos, 'Ratio': ratio})
+    
+    oportunidades_df = pd.DataFrame(oportunidades).sort_values('Ratio', ascending=False)
+    
+    st.subheader("Top Provincias con Mayor Oportunidad")
+    st.write("Estas provincias tienen alta concentración de leads potenciales en relación a clientes activos:")
+    st.dataframe(oportunidades_df)
 
-# Vista del mapa
-view_state = pdk.ViewState(
-    latitude=map_df['latitud'].mean(),
-    longitude=map_df['longitud'].mean(),
-    zoom=5,
-    pitch=0
-)
+    # Gráfico de barras
+    fig, ax = plt.subplots()
+    oportunidades_df.set_index('Provincia')['Ratio'].plot(kind='bar', ax=ax, color='green')
+    ax.set_title("Ratio Leads Potenciales / Clientes Activos por Provincia")
+    ax.set_ylabel("Ratio")
+    st.pyplot(fig)
 
-# Tooltip
-tooltip = {
-    "html": "<b>Nombre:</b> {nombre}<br/>"
-            "<b>Provincia:</b> {provincia}<br/>"
-            "<b>Localidad:</b> {localidad}<br/>"
-            "<b>Tipo:</b> {tipo}",
-    "style": {
-        "backgroundColor": "steelblue",
-        "color": "white"
-    }
-}
-
-# Renderizar mapa
-st.pydeck_chart(pdk.Deck(
-    map_style="carto-positron",  # Estilo básico gratuito
-    initial_view_state=view_state,
-    layers=[layer],
-    tooltip=tooltip
-))
-
+# Exportar resultados
+st.sidebar.header("Exportar Resultados")
+if st.sidebar.button("Exportar Datos Consolidados"):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        full_df.to_excel(writer, index=False)
+    st.sidebar.download_button(
+        label="Descargar Excel",
+        data=output.getvalue(),
+        file_name="datos_consolidados.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
