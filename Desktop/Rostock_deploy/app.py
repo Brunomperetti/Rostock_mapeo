@@ -190,7 +190,7 @@ tooltip = {
     }
 }
 
-# Renderizar mapa con OpenStreetMap
+# Renderizar mapa con estilo básico de OpenStreetMap
 st.pydeck_chart(pdk.Deck(
     map_style="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",  # Usando OpenStreetMap
     initial_view_state=view_state,
@@ -315,45 +315,3 @@ if st.button("Identificar Zonas de Oportunidad"):
     else:
         st.warning("No hay datos de leads potenciales para analizar.")
 
-# Recomendaciones basadas en el análisis
-st.header("Recomendaciones de Expansión")
-
-if st.button("Generar Recomendaciones"):
-    # Aquí iría la lógica más sofisticada para generar recomendaciones
-    # Por ahora un ejemplo simple basado en provincias con más leads potenciales
-    
-    provincias_potencial = full_df[full_df['potencial'] == 'alto']['provincia'].value_counts().head(5)
-    provincias_activos = full_df[full_df['potencial'] == 'activo']['provincia'].value_counts()
-    
-    # Priorizar provincias con muchos leads pero pocos clientes activos
-    oportunidades = []
-    for provincia, count in provincias_potencial.items():
-        activos = provincias_activos.get(provincia, 0)
-        ratio = count / (activos + 1)  # Evitar división por cero
-        oportunidades.append({'Provincia': provincia, 'Leads Potenciales': count, 'Clientes Activos': activos, 'Ratio': ratio})
-    
-    oportunidades_df = pd.DataFrame(oportunidades).sort_values('Ratio', ascending=False)
-    
-    st.subheader("Top Provincias con Mayor Oportunidad")
-    st.write("Estas provincias tienen alta concentración de leads potenciales en relación a clientes activos:")
-    st.dataframe(oportunidades_df)
-    
-    # Gráfico de barras
-    fig, ax = plt.subplots()
-    oportunidades_df.set_index('Provincia')['Ratio'].plot(kind='bar', ax=ax, color='green')
-    ax.set_title("Ratio Leads Potenciales / Clientes Activos por Provincia")
-    ax.set_ylabel("Ratio")
-    st.pyplot(fig)
-
-# Exportar resultados
-st.sidebar.header("Exportar Resultados")
-if st.sidebar.button("Exportar Datos Consolidados"):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        full_df.to_excel(writer, index=False)
-    st.sidebar.download_button(
-        label="Descargar Excel",
-        data=output.getvalue(),
-        file_name="datos_consolidados.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
