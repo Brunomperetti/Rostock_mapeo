@@ -6,3 +6,4 @@ scikit-learn
 geopy
 matplotlib
 openpyxl
+folium
