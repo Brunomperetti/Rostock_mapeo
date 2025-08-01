@@ -46,7 +46,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'Localidad': 'localidad', 'Teléfono': 'telefono',
                     'lat': 'latitud', 'lon': 'longitud'
                 })
-                df['tipo'] = 'Clientes Campaña'
+                df['tipo'] = 'Campaña Meta'
                 df['potencial'] = 'alto'
                 df['direccion'] = None
 
