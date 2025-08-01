@@ -17,10 +17,10 @@ st.title("Análisis de Oportunidades Comerciales en Argentina")
 st.sidebar.header("Carga de Datos")
 uploaded_files = {
     "base_fria": st.sidebar.file_uploader("Base Fría Geocodificada", type=["xlsx"]),
-    "clientes_campana": st.sidebar.file_uploader("Clientes Campaña", type=["xlsx"]),
-    "lista_pesada": st.sidebar.file_uploader("Lista Pesada", type=["xlsx"]),
-    "rep_motor": st.sidebar.file_uploader("Repuestos Motor", type=["xlsx"]),
-    "clientes_activos": st.sidebar.file_uploader("Clientes Activos", type=["xlsx"])
+    "clientes_campana": st.sidebar.file_uploader("Clientes Campaña Meta", type=["xlsx"]),
+    "lista_pesada": st.sidebar.file_uploader("Clientes Campaña Pesada", type=["xlsx"]),
+    "rep_motor": st.sidebar.file_uploader("Base Fría 2", type=["xlsx"]),
+    "clientes_activos": st.sidebar.file_uploader("Clientes Rostock", type=["xlsx"])
 }
 
 # Función para cargar y estandarizar datos (con caché)
@@ -46,7 +46,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'Localidad': 'localidad', 'Teléfono': 'telefono',
                     'lat': 'latitud', 'lon': 'longitud'
                 })
-                df['tipo'] = 'Clientes Campaña'
+                df['tipo'] = 'Clientes Campaña Meta'
                 df['potencial'] = 'alto'
                 df['direccion'] = None
 
@@ -55,7 +55,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'Nombre': 'nombre', 'Provincia': 'provincia',
                     'Teléfono': 'telefono', 'lat': 'latitud', 'lon': 'longitud'
                 })
-                df['tipo'] = 'Lista Pesada'
+                df['tipo'] = 'Clientes Campaña Pesada'
                 df['potencial'] = 'alto'
                 df['localidad'] = None
                 df['direccion'] = None
@@ -66,7 +66,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'Provincia': 'provincia', 'Dirección': 'direccion',
                     'Teléfono': 'telefono', 'lat': 'latitud', 'lon': 'longitud'
                 })
-                df['tipo'] = 'Repuestos Motor'
+                df['tipo'] = 'Base Fría 2'
                 df['potencial'] = 'bajo'
 
             elif file_type == "clientes_activos":
@@ -75,7 +75,7 @@ def load_and_standardize_data(uploaded_file, file_type):
                     'Localidad': 'localidad', 'Provincia': 'provincia',
                     'lat': 'latitud', 'lon': 'longitud'
                 })
-                df['tipo'] = 'Clientes Activos'
+                df['tipo'] = 'Clientes Rostock'
                 df['potencial'] = 'activo'
                 df['telefono'] = None
 
@@ -110,7 +110,7 @@ full_df['provincia'] = full_df['provincia'].str.upper().str.strip()
 st.header("Resumen de Datos Cargados")
 col1, col2, col3 = st.columns(3)
 col1.metric("Total de Registros", len(full_df))
-col2.metric("Clientes Activos", len(full_df[full_df['potencial'] == 'activo']))
+col2.metric("Clientes Rostock", len(full_df[full_df['potencial'] == 'activo']))
 col3.metric("Leads Potenciales", len(full_df[full_df['potencial'] == 'alto']))
 
 st.subheader("Distribución por Tipo")
@@ -135,13 +135,13 @@ m = folium.Map(location=map_center, zoom_start=5 if provincia_seleccionada == 'T
 # Agregar MarkerCluster
 marker_cluster = MarkerCluster().add_to(m)
 
-# Configuración de iconos por tipo
+# Configuración de iconos por tipo (actualizado con tus nombres)
 icon_config = {
     'Base Fría': {'color': 'blue', 'icon': 'info-sign'},
-    'Clientes Campaña': {'color': 'green', 'icon': 'user'},
-    'Lista Pesada': {'color': 'orange', 'icon': 'shopping-cart'},
-    'Repuestos Motor': {'color': 'purple', 'icon': 'wrench'},
-    'Clientes Activos': {'color': 'red', 'icon': 'star'}
+    'Clientes Campaña Meta': {'color': 'green', 'icon': 'user'},
+    'Clientes Campaña Pesada': {'color': 'orange', 'icon': 'shopping-cart'},
+    'Base Fría 2': {'color': 'purple', 'icon': 'wrench'},
+    'Clientes Rostock': {'color': 'red', 'icon': 'star'}
 }
 
 # Añadir marcadores al mapa con popups mejorados
@@ -170,20 +170,21 @@ for _, row in map_df.iterrows():
         )
     ).add_to(marker_cluster)
 
-# Añadir leyenda
+# Añadir leyenda actualizada
 legend_html = """
 <div style="position: fixed; 
-     bottom: 50px; left: 50px; width: 180px; height: 160px; 
+     bottom: 50px; left: 50px; width: 200px; height: 180px; 
      border:2px solid grey; z-index:9999; font-size:14px;
      background-color:white;
      padding: 10px;
-     border-radius: 5px;">
-     <b>Leyenda</b><br>
-     &nbsp; <i class="glyphicon glyphicon-star" style="color:red"></i> Clientes Activos<br>
-     &nbsp; <i class="glyphicon glyphicon-user" style="color:green"></i> Clientes Campaña<br>
-     &nbsp; <i class="glyphicon glyphicon-shopping-cart" style="color:orange"></i> Lista Pesada<br>
-     &nbsp; <i class="glyphicon glyphicon-info-sign" style="color:blue"></i> Base Fría<br>
-     &nbsp; <i class="glyphicon glyphicon-wrench" style="color:purple"></i> Repuestos Motor
+     border-radius: 5px;
+     box-shadow: 3px 3px 5px rgba(0,0,0,0.2);">
+     <h4 style="margin:0 0 10px 0; padding:0;">Leyenda</h4>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-star" style="color:red"></i> Clientes Rostock</p>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-user" style="color:green"></i> Campaña Meta</p>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-shopping-cart" style="color:orange"></i> Campaña Pesada</p>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-info-sign" style="color:blue"></i> Base Fría</p>
+     <p style="margin:3px 0;"><i class="glyphicon glyphicon-wrench" style="color:purple"></i> Base Fría 2</p>
 </div>
 """
 m.get_root().html.add_child(folium.Element(legend_html))
@@ -249,7 +250,7 @@ if st.button("Identificar Zonas de Oportunidad"):
                         color='#3186cc',
                         fill=True,
                         fill_color='#3186cc',
-                        popup=f"Clientes activos cercanos: {row['activos_cercanos']}"
+                        popup=f"Clientes Rostock cercanos: {row['activos_cercanos']}"
                     ).add_to(m_oportunidades)
                 
                 # Añadir todos los puntos de alto potencial
