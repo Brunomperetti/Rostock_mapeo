@@ -1,12 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import pydeck as pdk
-from sklearn.cluster import DBSCAN
-from geopy.distance import geodesic
-import matplotlib.pyplot as plt
-from io import BytesIO
-import openpyxl
 import folium
 from folium.plugins import MarkerCluster
 
@@ -196,91 +189,10 @@ if st.button("Identificar Zonas de Oportunidad"):
             # Calcular centroides de los clusters
             centroides = clusters.groupby('cluster')[['latitud', 'longitud']].mean().reset_index()
             
-            # Contar clientes activos cerca de cada centroide
-            def count_nearby_active(centroide, radius_km=50):
-                activos = full_df[full_df['potencial'] == 'activo']
-                if len(activos) == 0:
-                    return 0
-                
-                distances = activos.apply(
-                    lambda row: geodesic((row['latitud'], row['longitud']), (centroide['latitud'], centroide['longitud'])).km,
-                    axis=1
-                )
-                return len(distances[distances <= radius_km])
-            
-            centroides['activos_cercanos'] = centroides.apply(count_nearby_active, axis=1)
-            
-            # Ordenar por menor presencia de clientes activos (mayor oportunidad)
-            oportunidades = centroides.sort_values('activos_cercanos').head(5)
-            
+            # Mostrar tabla con oportunidades
             st.subheader("Top 5 Zonas de Oportunidad")
             st.write("Estas zonas tienen alta concentración de leads potenciales y baja presencia de clientes activos: ")
-            
-            # Mostrar tabla con oportunidades
-            st.dataframe(oportunidades)
-            
-            # Mapa de oportunidades
-            st.subheader("Mapa de Oportunidades")
-            
-            # Capa de clusters
-            cluster_layer = pdk.Layer(
-                "ScatterplotLayer",
-                clusters,
-                pickable=True,
-                opacity=0.8,
-                stroked=True,
-                filled=True,
-                radius_scale=10,
-                radius_min_pixels=5,
-                radius_max_pixels=15,
-                line_width_min_pixels=1,
-                get_position=['longitud', 'latitud'],
-                get_color=[255, 0, 0, 160],
-                get_radius=200,
-            )
-            
-            # Capa de centroides
-            centroide_layer = pdk.Layer(
-                "ScatterplotLayer",
-                oportunidades,
-                pickable=True,
-                opacity=0.8,
-                stroked=True,
-                filled=True,
-                radius_scale=20,
-                radius_min_pixels=10,
-                radius_max_pixels=30,
-                line_width_min_pixels=2,
-                get_position=['longitud', 'latitud'],
-                get_color=[0, 0, 255, 200],
-                get_radius=500,
-            )
-            
-            # Vista del mapa
-            view_state = pdk.ViewState(
-                latitude=oportunidades['latitud'].mean(),
-                longitude=oportunidades['longitud'].mean(),
-                zoom=5,
-                pitch=0
-            )
-            
-            # Tooltip para centroides
-            tooltip = {
-                "html": "<b>Zona de Oportunidad</b><br/>"
-                        "<b>Clientes activos cercanos:</b> {activos_cercanos}",
-                "style": {
-                    "backgroundColor": "steelblue",
-                    "color": "white"
-                }
-            }
-            
-            # Renderizar mapa
-            st.pydeck_chart(pdk.Deck(
-                map_style="mapbox://styles/mapbox/light-v9",
-                initial_view_state=view_state,
-                layers=[cluster_layer, centroide_layer],
-                tooltip=tooltip
-            ))
+            st.dataframe(centroides)
             
         else:
             st.warning("No se encontraron clusters significativos de leads potenciales.")
@@ -291,13 +203,9 @@ if st.button("Identificar Zonas de Oportunidad"):
 st.header("Recomendaciones de Expansión")
 
 if st.button("Generar Recomendaciones"):
-    # Aquí iría la lógica más sofisticada para generar recomendaciones
-    # Por ahora un ejemplo simple basado en provincias con más leads potenciales
-    
     provincias_potencial = full_df[full_df['potencial'] == 'alto']['provincia'].value_counts().head(5)
     provincias_activos = full_df[full_df['potencial'] == 'activo']['provincia'].value_counts()
     
-    # Priorizar provincias con muchos leads pero pocos clientes activos
     oportunidades = []
     for provincia, count in provincias_potencial.items():
         activos = provincias_activos.get(provincia, 0)
@@ -309,13 +217,6 @@ if st.button("Generar Recomendaciones"):
     st.subheader("Top Provincias con Mayor Oportunidad")
     st.write("Estas provincias tienen alta concentración de leads potenciales en relación a clientes activos:")
     st.dataframe(oportunidades_df)
-    
-    # Gráfico de barras
-    fig, ax = plt.subplots()
-    oportunidades_df.set_index('Provincia')['Ratio'].plot(kind='bar', ax=ax, color='green')
-    ax.set_title("Ratio Leads Potenciales / Clientes Activos por Provincia")
-    ax.set_ylabel("Ratio")
-    st.pyplot(fig)
 
 # Exportar resultados
 st.sidebar.header("Exportar Resultados")
@@ -329,8 +230,6 @@ if st.sidebar.button("Exportar Datos Consolidados"):
         file_name="datos_consolidados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-
 
 
 
