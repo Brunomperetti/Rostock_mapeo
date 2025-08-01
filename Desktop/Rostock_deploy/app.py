@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import folium
-from io import BytesIO
 from folium.plugins import MarkerCluster
+from io import BytesIO
 
 # Configuración de la página
 st.set_page_config(layout="wide", page_title="Oportunidades Comerciales en Argentina")
@@ -153,7 +153,7 @@ for _, row in map_df.iterrows():
     ).add_to(marker_cluster)
 
 # Mostrar mapa en Streamlit
-st.write(m)
+st.components.v1.html(m._repr_html_(), height=600)
 
 # Análisis de oportunidades
 st.header("Análisis de Oportunidades")
