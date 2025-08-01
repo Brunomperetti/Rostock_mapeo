@@ -7,3 +7,5 @@ geopy
 matplotlib
 openpyxl
 folium
+plotly
+streamlit
