@@ -132,6 +132,9 @@ else:
 map_center = [map_df['latitud'].mean(), map_df['longitud'].mean()]
 m = folium.Map(location=map_center, zoom_start=5 if provincia_seleccionada == 'TODAS' else 8)
 
+# Agregar MarkerCluster
+marker_cluster = MarkerCluster().add_to(m)
+
 # Configuración de iconos por tipo (actualizado con tus nombres)
 icon_config = {
     'Base Fría': {'color': 'blue', 'icon': 'info-sign'},
@@ -141,7 +144,7 @@ icon_config = {
     'Clientes Rostock': {'color': 'red', 'icon': 'star'}
 }
 
-# Añadir marcadores al mapa SIN agrupamiento
+# Añadir marcadores al mapa con popups mejorados
 for _, row in map_df.iterrows():
     icon_settings = icon_config.get(row['tipo'], {'color': 'gray', 'icon': 'question-sign'})
     
@@ -165,7 +168,7 @@ for _, row in map_df.iterrows():
             icon=icon_settings['icon'],
             prefix='glyphicon'
         )
-    ).add_to(m)  # Añadir directamente al mapa, no al MarkerCluster
+    ).add_to(marker_cluster)
 
 # Añadir leyenda actualizada
 legend_html = """
@@ -189,7 +192,7 @@ m.get_root().html.add_child(folium.Element(legend_html))
 # Mostrar mapa en Streamlit
 st.components.v1.html(m._repr_html_(), height=600)
 
-# Análisis de oportunidades (se mantiene igual)
+# Análisis de oportunidades
 st.header("Análisis de Oportunidades")
 
 if st.button("Identificar Zonas de Oportunidad"):
@@ -276,3 +279,4 @@ if st.button("Descargar Datos Consolidados"):
         file_name="datos_consolidados.csv",
         mime="text/csv"
     )
+
